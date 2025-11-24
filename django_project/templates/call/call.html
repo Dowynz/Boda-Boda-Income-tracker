@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1>Simple Video Call (Local Demo)</h1>
+
+<div id="loginSection">
+  <label>Username:
+    <input id="username">
+  </label>
+  <button onclick="login()">Login</button>
+</div>
+
+<div id="callSection" style="display:none;">
+  <label>Call user (name):
+    <input id="callee">
+  </label>
+  <button onclick="startCall()">Call</button>
+</div>
+
+<div id="inCall" style="display:none;">
+  <p>On call with <span id="onWith"></span></p>
+
+  <video id="localVideo" autoplay playsinline muted
+         style="width:320px;height:240px;border:1px solid #ccc;"></video>
+
+  <video id="remoteVideo" autoplay playsinline
+         style="width:320px;height:240px;border:1px solid #ccc;"></video>
+</div>
+{% endblock %}
+
+
+{% block include_js %}
+<script>
+let pc = null;
+let localStream = null;
+let ws = null;
+
+function login() {
+  const name = document.getElementById('username').value || 'guest';
+
+  document.getElementById('loginSection').style.display = 'none';
+  document.getElementById('callSection').style.display = 'block';
+
+  ws = new WebSocket(`ws://${location.host}/ws/call/`);
+
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    console.log("WS received:", msg);
+    // NOTE: This demo simply logs incoming signals.
+    // A real app would route messages to the correct peer.
+  };
+}
+
+async function startCall() {
+  document.getElementById('callSection').style.display = 'none';
+  document.getElementById('inCall').style.display = 'block';
+
+  const callee = document.getElementById('callee').value || 'peer';
+  document.getElementById('onWith').textContent = callee;
+
+  // Get webcam + microphone
+  localStream = await navigator.mediaDevices.getUserMedia({
+    video: true,
+    audio: true
+  });
+  document.getElementById('localVideo').srcObject = localStream;
+
+  // Create PeerConnection
+  pc = new RTCPeerConnection();
+
+  localStream.getTracks().forEach(track =>
+    pc.addTrack(track, localStream)
+  );
+
+  pc.ontrack = (event) => {
+    document.getElementById('remoteVideo').srcObject = event.streams[0];
+  };
+
+  // Create offer
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+
+  // Send offer through WebSocket
+  ws.send(JSON.stringify({ type: 'offer', data: offer }));
+
+  ws.onmessage = async (e) => {
+    const msg = JSON.parse(e.data);
+
+    if (msg.type === 'answer') {
+      await pc.setRemoteDescription(msg.data);
+    }
+
+    if (msg.type === 'ice') {
+      try {
+        await pc.addIceCandidate(msg.data);
+      } catch (err) {
+        console.warn("ICE error:", err);
+      }
+    }
+  };
+
+  // ICE candidates
+  pc.onicecandidate = (event) => {
+    if (event.candidate) {
+      ws.send(JSON.stringify({
+        type: 'ice',
+        data: event.candidate
+      }));
+    }
+  };
+}
+</script>
+{% endblock %}
