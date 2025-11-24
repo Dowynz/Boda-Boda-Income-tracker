@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1>Join a Chat Room</h1>
+
+<form method="post">
+    {% csrf_token %}
+    <label>Username:
+        <input name="username" required>
+    </label>
+    <br>
+
+    <label>Room name:
+        <input name="room_name" required>
+    </label>
+    <br>
+
+    <button type="submit">Join Room</button>
+</form>
+
+<h2>Existing Rooms</h2>
+
+<form method="get">
+    <input name="q" placeholder="Search rooms" value="{{ query }}">
+    <button type="submit">Search</button>
+</form>
+
+<ul>
+  {% for r in rooms %}
+    <li>
+        <a href="{% url 'room' r.name 'guest' %}">{{ r.name }}</a>
+    </li>
+  {% empty %}
+    <li>No rooms yet</li>
+  {% endfor %}
+</ul>
+{% endblock %}
