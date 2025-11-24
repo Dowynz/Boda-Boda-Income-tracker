@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h2>Room: {{ room_name }}</h2>
+
+<div id="messages" 
+     style="border:1px solid #ccc; height:300px; overflow:auto; padding:5px;">
+</div>
+
+<input id="msg" placeholder="Type message..." style="width:70%;">
+<button id="send">Send</button>
+{% endblock %}
+
+
+{% block include_js %}
+{{ room_name|json_script:"room_name" }}
+{{ username|json_script:"username" }}
+
+<script>
+// Get room data from Django template
+const room = JSON.parse(document.getElementById("room_name").textContent);
+const user = JSON.parse(document.getElementById("username").textContent);
+
+// Connect WebSocket
+const ws = new WebSocket(`ws://${location.host}/ws/chat/${room}/${user}/`);
+
+const messages = document.getElementById('messages');
+
+// Receive messages
+ws.onmessage = (e) => {
+    const data = JSON.parse(e.data);
+
+    const el = document.createElement('div');
+    el.textContent = `[${data.datetime}] ${data.user}: ${data.message}`;
+    messages.appendChild(el);
+
+    // Auto-scroll to bottom
+    messages.scrollTop = messages.scrollHeight;
+};
+
+// Send messages
+document.getElementById('send').onclick = () => {
+    const m = document.getElementById('msg').value;
+    if (m.trim().length === 0) return;
+
+    ws.send(JSON.stringify({ 'message': m }));
+    document.getElementById('msg').value = '';
+};
+</script>
+{% endblock %}
